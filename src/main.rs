@@ -20,7 +20,7 @@ fn main() -> io::Result<()> {
     let vapor_purple = Color::Rgb(153, 102, 255); // soft purple
 
     // Global subtle purple -> cyan fade
-    let fx_initial = fx::fade_to(vapor_purple, neon_cyan, (1_200, Interpolation::SineIn));
+    let fx_initial = fx::fade_to(vapor_purple, neon_cyan, (200, Interpolation::SineIn));
     effects.add_effect(fx_initial);
 
     let mut input = String::new();
@@ -97,10 +97,10 @@ fn main() -> io::Result<()> {
                             input.clear();
 
                             // Add a short coalesce + neon fade effect for the messages area
-                            let coalesce_fx = fx::coalesce((300, Interpolation::SineIn));
+                            let coalesce_fx = fx::coalesce((200, Interpolation::SineIn));
                             msg_effects.add_effect(coalesce_fx);
 
-                            let msg_flash = fx::fade_to(neon_pink, vapor_purple, (450, Interpolation::SineIn));
+                            let msg_flash = fx::fade_to(neon_pink, vapor_purple, (350, Interpolation::SineIn));
                             msg_effects.add_effect(msg_flash);
                         }
                     }
