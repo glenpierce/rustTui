@@ -27,11 +27,11 @@ fn main() -> io::Result<()> {
         terminal.draw(|frame| {
             let area = frame.area();
 
-            // Split the terminal vertically: header, messages area, and an input box at the bottom
+            // Split the terminal vertically: header, input, and messages area
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints(
-                    [Constraint::Length(3), Constraint::Min(3), Constraint::Length(3)].as_ref(),
+                    [Constraint::Length(3), Constraint::Length(3), Constraint::Min(3)].as_ref(),
                 )
                 .split(area);
 
@@ -39,7 +39,12 @@ fn main() -> io::Result<()> {
             let header = Paragraph::new("Hello, TachyonFX!").alignment(Alignment::Center);
             frame.render_widget(header, chunks[0]);
 
-            // Messages (middle) show submitted inputs
+            // Input box (middle)
+            let input_widget = Paragraph::new(input.as_str())
+                .block(Block::default().borders(Borders::ALL).title("Input"));
+            frame.render_widget(input_widget, chunks[1]);
+
+            // Messages (bottom) show submitted inputs
             let msgs_text = if messages.is_empty() {
                 "No messages yet".to_string()
             } else {
@@ -48,12 +53,7 @@ fn main() -> io::Result<()> {
             let messages_widget = Paragraph::new(msgs_text)
                 .block(Block::default().borders(Borders::ALL).title("Messages"))
                 .alignment(Alignment::Left);
-            frame.render_widget(messages_widget, chunks[1]);
-
-            // Input box (bottom) with a border and current input text
-            let input_widget = Paragraph::new(input.as_str())
-                .block(Block::default().borders(Borders::ALL).title("Input"));
-            frame.render_widget(input_widget, chunks[2]);
+            frame.render_widget(messages_widget, chunks[2]);
 
             // Apply effects to the whole screen buffer
             effects.process_effects(elapsed.into(), frame.buffer_mut(), area);
