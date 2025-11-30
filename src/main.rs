@@ -4,17 +4,23 @@ use ratatui::{
     prelude::*,
     layout::{Constraint, Direction, Layout},
     widgets::{Block, Borders, Paragraph},
+    style::{Color, Style, Modifier},
 };
 use tachyonfx::{fx, Duration, EffectManager, Interpolation};
 
 fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
     let mut effects: EffectManager<()> = EffectManager::default();
-    // Separate manager for effects that should only affect the messages area
     let mut msg_effects: EffectManager<()> = EffectManager::default();
 
-    // Add a simple fade-in effect (global)
-    let fx_initial = fx::fade_to(Color::Cyan, Color::Gray, (1_000, Interpolation::SineIn));
+    // Vaporwave palette (RGB)
+    let bg_dark = Color::Rgb(8, 0, 20);         // very dark background
+    let neon_cyan = Color::Rgb(102, 255, 255);  // bright cyan
+    let neon_pink = Color::Rgb(255, 102, 204);  // hot pink
+    let vapor_purple = Color::Rgb(153, 102, 255); // soft purple
+
+    // Global subtle purple -> cyan fade
+    let fx_initial = fx::fade_to(vapor_purple, neon_cyan, (1_200, Interpolation::SineIn));
     effects.add_effect(fx_initial);
 
     let mut input = String::new();
@@ -28,7 +34,7 @@ fn main() -> io::Result<()> {
         terminal.draw(|frame| {
             let area = frame.area();
 
-            // Split the terminal vertically: header, input, and messages area
+            // Layout: header, input, messages
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints(
@@ -36,40 +42,48 @@ fn main() -> io::Result<()> {
                 )
                 .split(area);
 
-            // Header (top)
-            let header = Paragraph::new("Hello, TachyonFX!").alignment(Alignment::Center);
+            // Header with vaporwave styling
+            let header = Paragraph::new("Vaporwave Terminal")
+                .style(Style::default().fg(neon_pink).bg(bg_dark).add_modifier(Modifier::BOLD))
+                .alignment(Alignment::Center);
             frame.render_widget(header, chunks[0]);
 
-            // Input box (middle)
-            let input_widget = Paragraph::new(input.as_str())
-                .block(Block::default().borders(Borders::ALL).title("Input"));
+            // Input box
+            let input_widget = Paragraph::new(input.as_str()).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Input")
+                    .style(Style::default().fg(neon_cyan).bg(bg_dark)),
+            );
             frame.render_widget(input_widget, chunks[1]);
 
-            // Messages (bottom) show submitted inputs
+            // Messages area
             let msgs_text = if messages.is_empty() {
                 "No messages yet".to_string()
             } else {
                 messages.join("\n")
             };
-            let messages_widget = Paragraph::new(msgs_text)
-                .block(Block::default().borders(Borders::ALL).title("Messages"))
-                .alignment(Alignment::Left);
+            let messages_widget = Paragraph::new(msgs_text).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Messages")
+                    .style(Style::default().fg(neon_pink).bg(bg_dark)),
+            ).alignment(Alignment::Left);
             frame.render_widget(messages_widget, chunks[2]);
 
-            // Apply global effects to the whole screen buffer
+            // Apply global effects to whole screen
             effects.process_effects(elapsed.into(), frame.buffer_mut(), area);
 
             // Apply message-only effects restricted to the messages area
             msg_effects.process_effects(elapsed.into(), frame.buffer_mut(), chunks[2]);
         })?;
 
-        // Poll for events and handle keys. Only exit on Escape.
+        // Event handling
         if event::poll(std::time::Duration::from_millis(16))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Esc => break,
                     KeyCode::Char(c) => {
-                        // Respect printable characters only
                         if !c.is_control() {
                             input.push(c);
                         }
@@ -82,9 +96,12 @@ fn main() -> io::Result<()> {
                             messages.push(input.clone());
                             input.clear();
 
-                            // Trigger a coalesce effect for the incoming message only.
+                            // Add a short coalesce + neon fade effect for the messages area
                             let coalesce_fx = fx::coalesce((300, Interpolation::SineIn));
                             msg_effects.add_effect(coalesce_fx);
+
+                            let msg_flash = fx::fade_to(neon_pink, vapor_purple, (450, Interpolation::SineIn));
+                            msg_effects.add_effect(msg_flash);
                         }
                     }
                     _ => {}
