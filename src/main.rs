@@ -1,5 +1,5 @@
 use crossterm::event::{self, Event, KeyCode};
-use std::{io, time::Instant};
+use std::{collections::HashMap, env, fs, io, time::Instant};
 use ratatui::{
     prelude::*,
     layout::{Constraint, Direction, Layout},
@@ -7,6 +7,94 @@ use ratatui::{
     style::{Color, Style, Modifier},
 };
 use tachyonfx::{fx, Duration, EffectManager, Interpolation};
+
+// Updated function: returns (top_commands, debug_messages)
+fn read_history_commands() -> (Vec<(String, usize)>, Vec<String>) {
+    let mut debug: Vec<String> = Vec::new();
+
+    // Try common history files; prefer zsh then bash
+    let mut candidates = Vec::new();
+    if let Ok(home) = env::var("HOME") {
+        candidates.push(format!("{}/.zsh_history", home));
+        candidates.push(format!("{}/.bash_history", home));
+    } else {
+        debug.push("ENV: HOME not set".to_string());
+    }
+
+    debug.push(format!("Candidate history files: {:?}", candidates));
+
+    let mut counts: HashMap<String, usize> = HashMap::new();
+
+    for path in &candidates {
+        debug.push(format!("Attempting to read {}", path));
+        match fs::read_to_string(path) {
+            Ok(content) => {
+                debug.push(format!("Read {} bytes, {} lines from {}", content.len(), content.lines().count(), path));
+                // show a few sample lines for diagnosis
+                for (i, line) in content.lines().take(6).enumerate() {
+                    debug.push(format!("sample line {}: {}", i + 1, line));
+                }
+
+                for line in content.lines() {
+                    // zsh history lines can look like: ": 1600000000:0;git status"
+                    // bash lines are plain commands.
+                    let cmd_part = if let Some(idx) = line.find(';') {
+                        // after the last ';' if multiple, use substring after it
+                        let after = &line[idx + 1..];
+                        after.trim()
+                    } else {
+                        line.trim()
+                    };
+
+                    if cmd_part.is_empty() {
+                        continue;
+                    }
+
+                    // Get the command name (first token). If it's "sudo", try the next token.
+                    let mut iter = cmd_part.split_whitespace();
+                    let first = iter.next().unwrap_or("");
+                    let name = if first == "sudo" {
+                        iter.next().unwrap_or(first)
+                    } else {
+                        first
+                    }
+                    .to_string();
+
+                    if !name.is_empty() {
+                        *counts.entry(name).or_default() += 1;
+                    }
+                }
+
+                debug.push(format!("Commands parsed so far: {}", counts.len()));
+                // if we successfully read one history file, don't fallback further
+                if !counts.is_empty() {
+                    debug.push(format!("Stopping after successful parse of {}", path));
+                    break;
+                } else {
+                    debug.push(format!("No commands found in {}, continuing to next candidate", path));
+                }
+            }
+            Err(e) => {
+                let msg = format!("Failed to read {}: {}", path, e);
+                debug.push(msg.clone());
+                // also print to stderr for additional visibility (won't corrupt messages vector)
+                eprintln!("{}", msg);
+            }
+        }
+    }
+
+    if counts.is_empty() {
+        debug.push("No history commands parsed from any candidate file.".to_string());
+        eprintln!("No history commands parsed from any candidate file.");
+    } else {
+        debug.push(format!("Total unique commands parsed: {}", counts.len()));
+    }
+
+    let mut pairs: Vec<(String, usize)> = counts.into_iter().collect();
+    pairs.sort_by(|a, b| b.1.cmp(&a.1));
+    pairs.truncate(20);
+    (pairs, debug)
+}
 
 fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
@@ -25,6 +113,17 @@ fn main() -> io::Result<()> {
 
     let mut input = String::new();
     let mut messages: Vec<String> = Vec::new();
+
+    // Read history and append top 20 commands to messages
+    let (top_cmds, history_debug) = read_history_commands();
+    if !history_debug.is_empty() {
+        messages.push("History debug:".to_string());
+        for line in history_debug {
+            messages.push(format!("  {}", line));
+        }
+        messages.push(String::new());
+    }
+
     let mut last_frame = Instant::now();
 
     loop {
