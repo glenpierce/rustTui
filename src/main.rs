@@ -133,11 +133,25 @@ fn main() -> io::Result<()> {
     let mut messages: Vec<String> = Vec::new();
 
     // Read history and append top 20 commands to messages
-    let (top_cmds, history_debug) = read_history_commands();
-    if !history_debug.is_empty() {
-        // messages.push("History debug:".to_string());
-        for line in history_debug {
-            messages.push(format!("  {}", line));
+    let (mut top_cmds, history_debug) = read_history_commands();
+
+    // if !history_debug.is_empty() {
+    //     for line in history_debug {
+    //         messages.push(format!("  {}", line));
+    //     }
+    //     messages.push(String::new());
+    // }
+
+    if !top_cmds.is_empty() {
+        // Ensure descending sort by count and limit to 20 entries
+        top_cmds.sort_by(|a, b| b.1.cmp(&a.1));
+        if top_cmds.len() > 20 {
+            top_cmds.truncate(20);
+        }
+
+        messages.push("Top commands:".to_string());
+        for (i, (name, count)) in top_cmds.into_iter().enumerate() {
+            messages.push(format!("  {:>2}. {:<25} {}", i + 1, name, count));
         }
         messages.push(String::new());
     }
