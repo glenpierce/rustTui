@@ -1,20 +1,21 @@
 use crossterm::event::{self, Event, KeyCode};
 use std::{io, time::Instant};
-
 use ratatui::{
     prelude::*,
     layout::{Constraint, Direction, Layout},
     widgets::{Block, Borders, Paragraph},
 };
-use tachyonfx::{fx, EffectManager, Interpolation};
+use tachyonfx::{fx, Duration, EffectManager, Interpolation};
 
 fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
     let mut effects: EffectManager<()> = EffectManager::default();
+    // Separate manager for effects that should only affect the messages area
+    let mut msg_effects: EffectManager<()> = EffectManager::default();
 
-    // Add a simple fade-in effect
-    let fx = fx::fade_to(Color::Cyan, Color::Gray, (1_000, Interpolation::SineIn));
-    effects.add_effect(fx);
+    // Add a simple fade-in effect (global)
+    let fx_initial = fx::fade_to(Color::Cyan, Color::Gray, (1_000, Interpolation::SineIn));
+    effects.add_effect(fx_initial);
 
     let mut input = String::new();
     let mut messages: Vec<String> = Vec::new();
@@ -55,8 +56,11 @@ fn main() -> io::Result<()> {
                 .alignment(Alignment::Left);
             frame.render_widget(messages_widget, chunks[2]);
 
-            // Apply effects to the whole screen buffer
+            // Apply global effects to the whole screen buffer
             effects.process_effects(elapsed.into(), frame.buffer_mut(), area);
+
+            // Apply message-only effects restricted to the messages area
+            msg_effects.process_effects(elapsed.into(), frame.buffer_mut(), chunks[2]);
         })?;
 
         // Poll for events and handle keys. Only exit on Escape.
@@ -77,6 +81,10 @@ fn main() -> io::Result<()> {
                         if !input.is_empty() {
                             messages.push(input.clone());
                             input.clear();
+
+                            // Trigger a coalesce effect for the incoming message only.
+                            let coalesce_fx = fx::coalesce((300, Interpolation::SineIn));
+                            msg_effects.add_effect(coalesce_fx);
                         }
                     }
                     _ => {}
