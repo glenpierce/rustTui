@@ -17,6 +17,7 @@ fn main() -> io::Result<()> {
     effects.add_effect(fx);
 
     let mut input = String::new();
+    let mut messages: Vec<String> = Vec::new();
     let mut last_frame = Instant::now();
 
     loop {
@@ -26,20 +27,33 @@ fn main() -> io::Result<()> {
         terminal.draw(|frame| {
             let area = frame.area();
 
-            // Split the terminal vertically: main area and an input box at the bottom
+            // Split the terminal vertically: header, messages area, and an input box at the bottom
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([Constraint::Min(3), Constraint::Length(3)].as_ref())
+                .constraints(
+                    [Constraint::Length(3), Constraint::Min(3), Constraint::Length(3)].as_ref(),
+                )
                 .split(area);
 
-            // Main content (top)
-            let text = Paragraph::new("Hello, TachyonFX!").alignment(Alignment::Center);
-            frame.render_widget(text, chunks[0]);
+            // Header (top)
+            let header = Paragraph::new("Hello, TachyonFX!").alignment(Alignment::Center);
+            frame.render_widget(header, chunks[0]);
+
+            // Messages (middle) show submitted inputs
+            let msgs_text = if messages.is_empty() {
+                "No messages yet".to_string()
+            } else {
+                messages.join("\n")
+            };
+            let messages_widget = Paragraph::new(msgs_text)
+                .block(Block::default().borders(Borders::ALL).title("Messages"))
+                .alignment(Alignment::Left);
+            frame.render_widget(messages_widget, chunks[1]);
 
             // Input box (bottom) with a border and current input text
             let input_widget = Paragraph::new(input.as_str())
                 .block(Block::default().borders(Borders::ALL).title("Input"));
-            frame.render_widget(input_widget, chunks[1]);
+            frame.render_widget(input_widget, chunks[2]);
 
             // Apply effects to the whole screen buffer
             effects.process_effects(elapsed.into(), frame.buffer_mut(), area);
@@ -60,7 +74,10 @@ fn main() -> io::Result<()> {
                         input.pop();
                     }
                     KeyCode::Enter => {
-                        // Optionally handle submit; currently ignored
+                        if !input.is_empty() {
+                            messages.push(input.clone());
+                            input.clear();
+                        }
                     }
                     _ => {}
                 }
