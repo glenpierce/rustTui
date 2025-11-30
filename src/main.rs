@@ -21,21 +21,29 @@ fn read_history_commands() -> (Vec<(String, usize)>, Vec<String>) {
         debug.push("ENV: HOME not set".to_string());
     }
 
-    debug.push(format!("Candidate history files: {:?}", candidates));
+    // debug.push(format!("Candidate history files: {:?}", candidates));
 
     let mut counts: HashMap<String, usize> = HashMap::new();
 
     for path in &candidates {
-        debug.push(format!("Attempting to read {}", path));
-        match fs::read_to_string(path) {
-            Ok(content) => {
-                debug.push(format!("Read {} bytes, {} lines from {}", content.len(), content.lines().count(), path));
-                // show a few sample lines for diagnosis
-                for (i, line) in content.lines().take(6).enumerate() {
-                    debug.push(format!("sample line {}: {}", i + 1, line));
-                }
+        // debug.push(format!("Attempting to read {}", path));
+        match fs::read(path) {
+            Ok(bytes) => {
+                debug.push(format!("Read {} bytes from {}", bytes.len(), path));
+                // Convert bytes to text, replacing invalid UTF-8 sequences
+                let content_cow = String::from_utf8_lossy(&bytes);
+                // debug.push(format!(
+                //     "After lossy UTF-8 conversion: {} chars, {} lines",
+                //     content_cow.len(),
+                //     content_cow.lines().count()
+                // ));
 
-                for line in content.lines() {
+                // show a few sample lines for diagnosis
+                // for (i, line) in content_cow.lines().take(6).enumerate() {
+                //     debug.push(format!("sample line {}: {}", i + 1, line));
+                // }
+
+                for line in content_cow.lines() {
                     // zsh history lines can look like: ": 1600000000:0;git status"
                     // bash lines are plain commands.
                     let cmd_part = if let Some(idx) = line.find(';') {
@@ -65,19 +73,18 @@ fn read_history_commands() -> (Vec<(String, usize)>, Vec<String>) {
                     }
                 }
 
-                debug.push(format!("Commands parsed so far: {}", counts.len()));
+                // debug.push(format!("Commands parsed so far: {}", counts.len()));
                 // if we successfully read one history file, don't fallback further
                 if !counts.is_empty() {
-                    debug.push(format!("Stopping after successful parse of {}", path));
+                    // debug.push(format!("Stopping after successful parse of {}", path));
                     break;
                 } else {
-                    debug.push(format!("No commands found in {}, continuing to next candidate", path));
+                    // debug.push(format!("No commands found in {}, continuing to next candidate", path));
                 }
             }
             Err(e) => {
                 let msg = format!("Failed to read {}: {}", path, e);
                 debug.push(msg.clone());
-                // also print to stderr for additional visibility (won't corrupt messages vector)
                 eprintln!("{}", msg);
             }
         }
@@ -87,7 +94,18 @@ fn read_history_commands() -> (Vec<(String, usize)>, Vec<String>) {
         debug.push("No history commands parsed from any candidate file.".to_string());
         eprintln!("No history commands parsed from any candidate file.");
     } else {
-        debug.push(format!("Total unique commands parsed: {}", counts.len()));
+        // debug.push(format!("Total unique commands parsed: {}", counts.len()));
+    }
+
+    // Collect and sort unique command names and append them to debug output,
+    // one command per line for easy inspection.
+    if !counts.is_empty() {
+        let mut names: Vec<String> = counts.keys().cloned().collect();
+        names.sort();
+        debug.push(format!("Command names ({}):", names.len()));
+        for name in names {
+            debug.push(format!("  {}", name));
+        }
     }
 
     let mut pairs: Vec<(String, usize)> = counts.into_iter().collect();
@@ -117,7 +135,7 @@ fn main() -> io::Result<()> {
     // Read history and append top 20 commands to messages
     let (top_cmds, history_debug) = read_history_commands();
     if !history_debug.is_empty() {
-        messages.push("History debug:".to_string());
+        // messages.push("History debug:".to_string());
         for line in history_debug {
             messages.push(format!("  {}", line));
         }
